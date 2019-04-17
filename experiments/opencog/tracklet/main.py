@@ -35,8 +35,8 @@ def add_tracklets_to_atomspace(tracklets):
     initialize_opencog(atomspace)
     try:
         for id in tracklets.get_ids():
-            add_tracklet_to_atomspace(
-                TrackletGroundedObjectNode(id, tracklets.get_tracklet(id)))
+            tracklet = tracklets.get_tracklet(id)
+            add_tracklet_to_atomspace(TrackletGroundedObjectNode(id, tracklet))
         print_atomspace(atomspace)
     finally:
         finalize_opencog()
