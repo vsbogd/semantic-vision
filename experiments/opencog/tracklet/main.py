@@ -1,8 +1,11 @@
-from tracklets import load_tracklets
 import enum
+
+from tracklets import load_tracklets
+
 from opencog.type_constructors import *
 from opencog.atomspace import AtomSpace
 from opencog.utilities import initialize_opencog, finalize_opencog
+from opencog.bindlink import execute_atom
 
 class RoadUserType(enum.Enum):
     PERSON = 0
@@ -21,41 +24,85 @@ class TrackletGroundedObjectNode:
     def get_klass(self):
         return RoadUserType(self.id[0])
 
-def concept_of_klass(klass):
-    return ConceptNode(str(klass))
+    def compare(self, other):
+        return 0.01
 
 def print_atomspace(atomspace):
     for atom in atomspace:
         print(atom)
 
+def is_similar(atom):
+    distance = atom.get_object()
+    if distance < 0.1:
+        return TruthValue(1.0, 1.0)
+    else:
+        return TruthValue(0.0, 1.0)
 
 
-def add_tracklets_to_atomspace(tracklets):
-    atomspace = AtomSpace()
-    initialize_opencog(atomspace)
-    try:
+
+class TrackletAnomalyDetector:
+
+    def __init__(self, atomspace):
+        self.atomspace = atomspace
+
+    def check_anomaly(self, tracklets):
+        id = tracklets.get_ids()[100]
+        tracklet = tracklets.get_tracklet(id)
+        anomaly = self.check_tracklet(TrackletGroundedObjectNode(id, tracklet))
+        print("tracklet:", id, tracklet, "anomaly:", anomaly)
+
+    def check_tracklet(self, tracklet):
+        query = BindLink(
+            VariableNode("X"),
+            AndLink(
+                InheritanceLink(VariableNode("X"),
+                                ConceptNode(str(tracklet.get_klass()))),
+                EvaluationLink(
+                    GroundedPredicateNode("py: is_similar"),
+                    ApplyLink(
+                        MethodOfLink(
+                            GroundedObjectNode(tracklet.get_name(), tracklet,
+                                               unwrap_args = True),
+                            ConceptNode("compare")),
+                            ListLink(VariableNode("X"))))),
+            VariableNode("X"))
+        similar = execute_atom(self.atomspace, query)
+        print("similar:", similar)
+        return similar.arity < 1
+
+    def add_tracklets_to_atomspace(self, tracklets):
         for id in tracklets.get_ids():
             tracklet = tracklets.get_tracklet(id)
-            add_tracklet_to_atomspace(TrackletGroundedObjectNode(id, tracklet))
+            self.add_tracklet_to_atomspace(TrackletGroundedObjectNode(id, tracklet))
         print_atomspace(atomspace)
-    finally:
-        finalize_opencog()
 
-def add_tracklet_to_atomspace(tracklet):
-    gon = GroundedObjectNode(tracklet.get_name(), tracklet, unwrap_args = True)
-    klass = ConceptNode(str(tracklet.get_klass()))
-    InheritanceLink(gon, klass)
+    def add_tracklet_to_atomspace(self, tracklet):
+        gon = GroundedObjectNode(tracklet.get_name(), tracklet, unwrap_args = True)
+        klass = ConceptNode(str(tracklet.get_klass()))
+        InheritanceLink(gon, klass)
 
 
 
 def parse_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pkl', type=str)
+    parser.add_argument('--train', type=str,
+                        help='Pickle database with train set')
+    parser.add_argument('--test', type=str,
+                        help='Pickle database with test set')
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = parse_args()
-    tracklets = load_tracklets(args.pkl)
-    add_tracklets_to_atomspace(tracklets)
+
+    atomspace = AtomSpace()
+    initialize_opencog(atomspace)
+    try:
+        detector = TrackletAnomalyDetector(atomspace)
+        tracklets = load_tracklets(args.train)
+        detector.add_tracklets_to_atomspace(tracklets)
+        tracklets = load_tracklets(args.test)
+        detector.check_anomaly(tracklets)
+    finally:
+        finalize_opencog()
 
