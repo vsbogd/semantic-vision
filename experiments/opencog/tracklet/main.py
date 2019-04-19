@@ -25,6 +25,7 @@ class TrackletGroundedObjectNode:
         return RoadUserType(self.id[0])
 
     def compare(self, other):
+        # TODO: implement propely
         return 0.01
 
 def print_atomspace(atomspace):
