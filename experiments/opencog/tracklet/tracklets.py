@@ -1,4 +1,5 @@
 import pickle
+import logging as log
 
 
 class Frame:
@@ -43,6 +44,7 @@ class Frame:
         center : (int, int)
             current bounding box's center coordinate
         '''
+        log.debug("BoundingBox.get_center()")
         return (self.bbx[0], self.bbx[1])
 
     def get_size(self):
@@ -63,6 +65,7 @@ class Frame:
         features : ndarray
             current bounding box's features
         '''
+        log.debug("BoundingBox.get_features()")
         return self.feature
 
     def __str__(self):

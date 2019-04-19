@@ -1,4 +1,6 @@
 import enum
+import math
+import logging as log
 
 from tracklets import load_tracklets
 
@@ -6,6 +8,8 @@ from opencog.type_constructors import *
 from opencog.atomspace import AtomSpace
 from opencog.utilities import initialize_opencog, finalize_opencog
 from opencog.bindlink import execute_atom
+
+
 
 class RoadUserType(enum.Enum):
     PERSON = 0
@@ -28,16 +32,51 @@ class TrackletGroundedObjectNode:
         # TODO: implement propely
         return 0.01
 
+    def get_first(self):
+        log.debug("TrackletGroundedObjectNode.get_first()")
+        return self.tracklet[0]
+
+    def get_last(self):
+        log.debug("TrackletGroundedObjectNode.get_last()")
+        return self.tracklet[-1]
+
 def print_atomspace(atomspace):
     for atom in atomspace:
         print(atom)
 
-def is_similar(atom):
+def is_similar(atom, delta):
     distance = atom.get_object()
-    if distance < 0.1:
+    if distance < delta:
         return TruthValue(1.0, 1.0)
     else:
         return TruthValue(0.0, 1.0)
+
+def is_similar_tracklets(atom):
+    return is_similar(atom, 0.1)
+
+def is_similar_points(atom):
+    return is_similar(atom, 100)
+
+def is_similar_features(atom):
+    return is_similar(atom, 30)
+
+def euclid_distance(a, b):
+    log.debug("distance()")
+    log.debug("a: %s, b: %s" % (a, b))
+    distance = 0.0
+    for ai, bi in zip(a, b):
+        distance += (ai - bi) ** 2
+    distance = math.sqrt(distance)
+    log.debug("distance: %s" % distance)
+    return distance
+
+def features_distance(a, b):
+    distance = euclid_distance(a.get_object(), b.get_object())
+    return GroundedObjectNode(str(id(distance)), distance)
+
+def points_distance(a, b):
+    distance = euclid_distance(a.get_object(), b.get_object())
+    return GroundedObjectNode(str(id(distance)), distance)
 
 class AtomspaceBuilder:
 
@@ -58,6 +97,68 @@ class AtomspaceBuilder:
     def get_atomspace(self):
         return self.atomspace
 
+class TrackletReId:
+
+    def __init__(self, atomspace):
+        self.atomspace = atomspace
+
+    def query(self):
+        return BindLink(
+            VariableList(
+                TypedVariableLink(VariableNode("HEAD"),
+                                  TypeNode("GroundedObjectNode")),
+                TypedVariableLink(VariableNode("TAIL"),
+                                  TypeNode("GroundedObjectNode")),
+                TypedVariableLink(VariableNode("CLASS"),
+                                  TypeNode("ConceptNode"))),
+            AndLink(
+                NotLink(EqualLink(VariableNode("HEAD"), VariableNode("TAIL"))),
+                InheritanceLink(VariableNode("HEAD"), VariableNode("CLASS")),
+                InheritanceLink(VariableNode("TAIL"), VariableNode("CLASS")),
+                EvaluationLink(
+                    GroundedPredicateNode("py: is_similar_features"),
+                    ExecutionOutputLink(
+                        GroundedSchemaNode("py: features_distance"),
+                        ListLink(
+                            ApplyLink(MethodOfLink(
+                                ApplyLink(MethodOfLink(VariableNode("HEAD"),
+                                                       ConceptNode("get_last")),
+                                          ListLink()),
+                                ConceptNode("get_features")),
+                                ListLink()),
+                            ApplyLink(MethodOfLink(
+                                ApplyLink(MethodOfLink(VariableNode("TAIL"),
+                                                       ConceptNode("get_first")),
+                                          ListLink()),
+                                ConceptNode("get_features")),
+                                ListLink())))),
+                EvaluationLink(
+                    GroundedPredicateNode("py: is_similar_points"),
+                    ExecutionOutputLink(
+                        GroundedSchemaNode("py: points_distance"),
+                        ListLink(
+                            ApplyLink(MethodOfLink(
+                                ApplyLink(MethodOfLink(VariableNode("HEAD"),
+                                                       ConceptNode("get_last")),
+                                          ListLink()),
+                                ConceptNode("get_center")),
+                                ListLink()),
+                            ApplyLink(MethodOfLink(
+                                ApplyLink(MethodOfLink(VariableNode("TAIL"),
+                                                       ConceptNode("get_first")),
+                                          ListLink()),
+                                ConceptNode("get_center")),
+                                ListLink()))))),
+            ListLink(VariableNode("HEAD"), VariableNode("TAIL")))
+
+    def merge(self):
+        #print("before:")
+        #print_atomspace(atomspace)
+        result = execute_atom(self.atomspace, self.query())
+        print("result:", result)
+        #print("after:")
+        #print_atomspace(atomspace)
+
 class TrackletAnomalyDetector:
 
     def __init__(self, atomspace):
@@ -76,7 +177,7 @@ class TrackletAnomalyDetector:
                 InheritanceLink(VariableNode("X"),
                                 ConceptNode(str(tracklet.get_klass()))),
                 EvaluationLink(
-                    GroundedPredicateNode("py: is_similar"),
+                    GroundedPredicateNode("py: is_similar_tracklets"),
                     ApplyLink(
                         MethodOfLink(
                             GroundedObjectNode(tracklet.get_name(), tracklet,
@@ -90,7 +191,6 @@ class TrackletAnomalyDetector:
 
 
 
-
 def parse_args():
     import argparse
     parser = argparse.ArgumentParser()
@@ -101,6 +201,7 @@ def parse_args():
     return parser.parse_args()
 
 if __name__ == '__main__':
+    log.basicConfig(level=log.DEBUG)
     args = parse_args()
 
     atomspace = AtomSpace()
@@ -109,6 +210,9 @@ if __name__ == '__main__':
         builder = AtomspaceBuilder(atomspace)
         tracklets = load_tracklets(args.train)
         builder.add_tracklets(tracklets)
+
+        reid = TrackletReId(atomspace)
+        reid.merge()
 
         detector = TrackletAnomalyDetector(atomspace)
         tracklets = load_tracklets(args.test)
