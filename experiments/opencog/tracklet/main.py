@@ -152,12 +152,8 @@ class TrackletReId:
             ListLink(VariableNode("HEAD"), VariableNode("TAIL")))
 
     def merge(self):
-        #print("before:")
-        #print_atomspace(atomspace)
         result = execute_atom(self.atomspace, self.query())
         print("result:", result)
-        #print("after:")
-        #print_atomspace(atomspace)
 
 class TrackletAnomalyDetector:
 
@@ -198,11 +194,13 @@ def parse_args():
                         help='Pickle database with train set')
     parser.add_argument('--test', type=str,
                         help='Pickle database with test set')
+    parser.add_argument('--log', type=str, default='INFO',
+                        help='Log level')
     return parser.parse_args()
 
 if __name__ == '__main__':
-    log.basicConfig(level=log.DEBUG)
     args = parse_args()
+    log.basicConfig(level=log.getLevelName(args.log))
 
     atomspace = AtomSpace()
     initialize_opencog(atomspace)
