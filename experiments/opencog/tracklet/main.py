@@ -78,6 +78,8 @@ def points_distance(a, b):
     distance = euclid_distance(a.get_object(), b.get_object())
     return GroundedObjectNode(str(id(distance)), distance)
 
+
+
 class AtomspaceBuilder:
 
     def __init__(self, atomspace):
@@ -103,6 +105,38 @@ class TrackletReId:
         self.atomspace = atomspace
 
     def query(self):
+        head_last = ApplyLink(MethodOfLink(VariableNode("HEAD"),
+                                           ConceptNode("get_last")),
+                              ListLink())
+        tail_first = ApplyLink(MethodOfLink(VariableNode("TAIL"),
+                                            ConceptNode("get_first")),
+                               ListLink())
+        is_head_similar_to_tail = EvaluationLink(
+                    GroundedPredicateNode("py: is_similar_features"),
+                    ExecutionOutputLink(
+                        GroundedSchemaNode("py: features_distance"),
+                        ListLink(
+                            ApplyLink(MethodOfLink(
+                                head_last,
+                                ConceptNode("get_features")),
+                                ListLink()),
+                            ApplyLink(MethodOfLink(
+                                tail_first,
+                                ConceptNode("get_features")),
+                                ListLink()))))
+        is_head_near_tail = EvaluationLink(
+                    GroundedPredicateNode("py: is_similar_points"),
+                    ExecutionOutputLink(
+                        GroundedSchemaNode("py: points_distance"),
+                        ListLink(
+                            ApplyLink(MethodOfLink(
+                                head_last,
+                                ConceptNode("get_center")),
+                                ListLink()),
+                            ApplyLink(MethodOfLink(
+                                tail_first,
+                                ConceptNode("get_center")),
+                                ListLink()))))
         return BindLink(
             VariableList(
                 TypedVariableLink(VariableNode("HEAD"),
@@ -115,40 +149,8 @@ class TrackletReId:
                 NotLink(EqualLink(VariableNode("HEAD"), VariableNode("TAIL"))),
                 InheritanceLink(VariableNode("HEAD"), VariableNode("CLASS")),
                 InheritanceLink(VariableNode("TAIL"), VariableNode("CLASS")),
-                EvaluationLink(
-                    GroundedPredicateNode("py: is_similar_features"),
-                    ExecutionOutputLink(
-                        GroundedSchemaNode("py: features_distance"),
-                        ListLink(
-                            ApplyLink(MethodOfLink(
-                                ApplyLink(MethodOfLink(VariableNode("HEAD"),
-                                                       ConceptNode("get_last")),
-                                          ListLink()),
-                                ConceptNode("get_features")),
-                                ListLink()),
-                            ApplyLink(MethodOfLink(
-                                ApplyLink(MethodOfLink(VariableNode("TAIL"),
-                                                       ConceptNode("get_first")),
-                                          ListLink()),
-                                ConceptNode("get_features")),
-                                ListLink())))),
-                EvaluationLink(
-                    GroundedPredicateNode("py: is_similar_points"),
-                    ExecutionOutputLink(
-                        GroundedSchemaNode("py: points_distance"),
-                        ListLink(
-                            ApplyLink(MethodOfLink(
-                                ApplyLink(MethodOfLink(VariableNode("HEAD"),
-                                                       ConceptNode("get_last")),
-                                          ListLink()),
-                                ConceptNode("get_center")),
-                                ListLink()),
-                            ApplyLink(MethodOfLink(
-                                ApplyLink(MethodOfLink(VariableNode("TAIL"),
-                                                       ConceptNode("get_first")),
-                                          ListLink()),
-                                ConceptNode("get_center")),
-                                ListLink()))))),
+                is_head_similar_to_tail,
+                is_head_near_tail),
             ListLink(VariableNode("HEAD"), VariableNode("TAIL")))
 
     def merge(self):
