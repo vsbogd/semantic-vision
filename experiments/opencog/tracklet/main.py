@@ -38,7 +38,24 @@ def is_similar(atom):
     else:
         return TruthValue(0.0, 1.0)
 
+class AtomspaceBuilder:
 
+    def __init__(self, atomspace):
+        self.atomspace = atomspace
+
+    def add_tracklets(self, tracklets):
+        for id in tracklets.get_ids():
+            tracklet = tracklets.get_tracklet(id)
+            self.add_tracklet(TrackletGroundedObjectNode(id, tracklet))
+        print_atomspace(atomspace)
+
+    def add_tracklet(self, tracklet):
+        gon = GroundedObjectNode(tracklet.get_name(), tracklet, unwrap_args = True)
+        klass = ConceptNode(str(tracklet.get_klass()))
+        InheritanceLink(gon, klass)
+
+    def get_atomspace(self):
+        return self.atomspace
 
 class TrackletAnomalyDetector:
 
@@ -70,16 +87,6 @@ class TrackletAnomalyDetector:
         print("similar:", similar)
         return similar.arity < 1
 
-    def add_tracklets_to_atomspace(self, tracklets):
-        for id in tracklets.get_ids():
-            tracklet = tracklets.get_tracklet(id)
-            self.add_tracklet_to_atomspace(TrackletGroundedObjectNode(id, tracklet))
-        print_atomspace(atomspace)
-
-    def add_tracklet_to_atomspace(self, tracklet):
-        gon = GroundedObjectNode(tracklet.get_name(), tracklet, unwrap_args = True)
-        klass = ConceptNode(str(tracklet.get_klass()))
-        InheritanceLink(gon, klass)
 
 
 
@@ -98,9 +105,11 @@ if __name__ == '__main__':
     atomspace = AtomSpace()
     initialize_opencog(atomspace)
     try:
-        detector = TrackletAnomalyDetector(atomspace)
+        builder = AtomspaceBuilder(atomspace)
         tracklets = load_tracklets(args.train)
-        detector.add_tracklets_to_atomspace(tracklets)
+        builder.add_tracklets(tracklets)
+
+        detector = TrackletAnomalyDetector(atomspace)
         tracklets = load_tracklets(args.test)
         detector.check_anomaly(tracklets)
     finally:
