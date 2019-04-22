@@ -26,6 +26,16 @@ class Frame:
         self.bbx = bbx
         self.feature = feature
 
+    def get_time(self):
+        '''Return absolute time when this bounding box were visible
+
+        Returns
+        -------
+        time : int
+            absolute time of the current bounding box
+        '''
+        return int(self.get_image_id())
+
     def get_image_id(self):
         '''To get image id of current bounding box
 
@@ -44,7 +54,6 @@ class Frame:
         center : (int, int)
             current bounding box's center coordinate
         '''
-        log.debug("BoundingBox.get_center()")
         return (self.bbx[0], self.bbx[1])
 
     def get_size(self):
@@ -65,7 +74,6 @@ class Frame:
         features : ndarray
             current bounding box's features
         '''
-        log.debug("BoundingBox.get_features()")
         return self.feature
 
     def __str__(self):
