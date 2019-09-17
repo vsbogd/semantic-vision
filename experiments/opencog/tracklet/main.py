@@ -39,37 +39,52 @@ class TrackletGroundedObjectNode:
         return self.tracklet[-1]
 
     def speed_is_similar(self, tail):
-        if len(self.tracklet) < 2 or len(tail.tracklet) < 2:
+        head = self
+        if len(head.tracklet) < 2 or len(tail.tracklet) < 2:
             return False
-        end_speed = speed(self.tracklet[-2], self.tracklet[-1])
-        begin_speed = speed(tail.tracklet[0], tail.tracklet[1])
-        between_speed = speed(self.tracklet[-1], tail.tracklet[0])
+        end_speed = speed(head.tracklet)
+        begin_speed = speed(tail.tracklet)
+        between_speed = speed(head.tracklet +  tail.tracklet)
         average_speed = (end_speed + begin_speed) / 2.0
         diff = abs(average_speed - between_speed)
         similar = diff < 0.1
-        log.debug("len head: %s, len tail: %s" % (len(self.tracklet),
-                  len(tail.tracklet)))
         log.debug("end_speed: %s, begin_speed: %s, between_speed: %s, " %
                   (end_speed, begin_speed, between_speed) +
                   "average_speed: %s, similar: %s, diff: %s" %
                   (average_speed, similar, diff))
         return similar
 
+    def features_are_similar(self, tail):
+        head = self
+        min = None
+        for h in head.tracklet:
+            for t in tail.tracklet:
+                distance = features_distance(h.get_features(),
+                                             t.get_features())
+                if min is None or min > distance:
+                    min = distance
+        return min
+
     def is_prefix_of(self, tail):
-        same_klass = self.get_klass() == tail.get_klass()
-        tail_is_later = self.get_last().get_time() < tail.get_first().get_time()
-        distance = features_distance(self.get_last().get_features(),
-                                     tail.get_first().get_features())
-        speed_is_similar = self.speed_is_similar(tail)
+        head = self
+
+        same_klass = head.get_klass() == tail.get_klass()
+        if not same_klass:
+            return False
+
+        tail_is_later = head.get_last().get_time() < tail.get_first().get_time()
+        if not tail_is_later:
+            return False
+
+        distance = head.features_are_similar(tail)
+        speed_is_similar = head.speed_is_similar(tail)
         log.debug("head: %s, tail: %s, features_distance: %s, speed_is_similar: %s" %
-                  (self.get_name(), tail.get_name(), distance,
+                  (head.get_name(), tail.get_name(), distance,
                    speed_is_similar))
         log.debug("last frame: %s, first frame: %s" %
-                  (self.get_last().get_image_id(),
+                  (head.get_last().get_image_id(),
                   tail.get_first().get_image_id()))
-        return (same_klass
-                and tail_is_later
-                and distance < 30
+        return (distance < 30
                 and speed_is_similar)
 
 def print_atomspace(atomspace):
@@ -91,9 +106,13 @@ def points_distance(a, b):
     distance = euclid_distance(a, b)
     return distance
 
-def speed(a, b):
-    distance = points_distance(a.get_center(), b.get_center())
-    period = b.get_time() - a.get_time()
+def speed(track):
+    distance = 0
+    period = 0
+    for (a, b) in zip(track[:-1], track[1:]):
+        distance += points_distance(a.get_center(), b.get_center())
+        period += b.get_time() - a.get_time()
+    log.debug("period: %s, distance: %s" % (period, distance))
     return distance / period
 
 def bool_to_truth_value(atom):
